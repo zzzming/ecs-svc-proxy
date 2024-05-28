@@ -89,22 +89,18 @@ func listServices(ecsClient *ecs.ECS, cluster string) ([]*string, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("services %v", resp.ServiceArns)
 	return resp.ServiceArns, nil
 }
 
-func listTasks(ecsClient *ecs.ECS, cluster string, services []*string) ([]*string, error) {
+func listTasks(ecsClient *ecs.ECS, cluster string) ([]*string, error) {
 	var tasks []*string
-	for _, service := range services {
-		resp, err := ecsClient.ListTasks(&ecs.ListTasksInput{
-			Cluster:     aws.String(cluster),
-			ServiceName: service,
-		})
-		if err != nil {
-			return nil, err
-		}
-		tasks = append(tasks, resp.TaskArns...)
+	resp, err := ecsClient.ListTasks(&ecs.ListTasksInput{
+		Cluster: aws.String(cluster),
+	})
+	if err != nil {
+		return nil, err
 	}
+	tasks = append(tasks, resp.TaskArns...)
 	return tasks, nil
 }
 
@@ -113,11 +109,13 @@ func buildServiceDetails(ecsClient *ecs.ECS, cluster string) []ECSService {
 	if err != nil {
 		log.Fatalf("Failed to list services: %v", err)
 	}
+	log.Printf("services %v", services)
 
-	tasks, err := listTasks(ecsClient, cluster, services)
+	tasks, err := listTasks(ecsClient, cluster)
 	if err != nil {
 		log.Fatalf("Failed to list tasks: %v", err)
 	}
+	log.Printf("tasks %v", tasks)
 
 	return getServiceDetails(ecsClient, cluster, tasks)
 }
@@ -153,5 +151,6 @@ func getServiceDetail(orgID string, services []ECSService) (string, bool) {
 			return svc.IP, true
 		}
 	}
+	log.Printf("Service not found for Org-ID %s", orgID)
 	return "", false
 }
