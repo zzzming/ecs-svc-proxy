@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -17,18 +18,44 @@ type ECSService struct {
 	IP   string
 }
 
+type Config struct {
+	AWSRegion         string
+	ECSCluster        string
+	ProxyPort         string
+	HeaderRoutingName string
+}
+
+func getEnv(key, defaultValue string) string {
+	if value, exists := os.LookupEnv(key); exists {
+		return value
+	} else if value == "" && defaultValue == "" {
+		panic(fmt.Errorf("missing mandatory env %s", key))
+	}
+	return defaultValue
+}
+
+func LoadConfig() Config {
+	return Config{
+		AWSRegion:         getEnv("AWS_REGION", "us-west-2"),
+		ECSCluster:        getEnv("ECS_CLUSTER", ""),
+		ProxyPort:         getEnv("PROXY_PORT", "8080"),
+		HeaderRoutingName: getEnv("DEFAULT_ORG_ID", "X-Org-ID"),
+	}
+}
+
 func main() {
 	config := LoadConfig()
 
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(config.AWSRegion),
 	}))
+	log.Printf("AWS Region: %s cluster %s", config.AWSRegion, config.ECSCluster)
 
 	ecsClient := ecs.New(sess)
 	cluster := config.ECSCluster
 
 	serviceDetails := buildServiceDetails(ecsClient, cluster)
-	log.Printf("%v", serviceDetails)
+	log.Printf("service details %v", serviceDetails)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +89,7 @@ func listServices(ecsClient *ecs.ECS, cluster string) ([]*string, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("services %v", resp.ServiceArns)
 	return resp.ServiceArns, nil
 }
 
